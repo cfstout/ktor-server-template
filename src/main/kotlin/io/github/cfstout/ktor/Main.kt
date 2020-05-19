@@ -1,20 +1,22 @@
 package io.github.cfstout.ktor
 
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
-import java.lang.IllegalStateException
 import java.time.Instant
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 object Main {
     private val logger = LoggerFactory.getLogger(Main::class.java)
 
     @JvmStatic
-    fun main(args: Array<String>) {
+    fun main(args: Array<String>) = runBlocking {
         logger.info("STARTING DEMO")
         val start = Instant.now()
 //        val ifWeDontJoinNothingHappens: CompletableFuture<Int> = ifWeDontJoinNothingHappens()
@@ -23,9 +25,31 @@ object Main {
 //        val theFuture = weCanMapTheReturnValue()
 //        logger.info("We have a reference to the future in the main thread")
 //        logger.info("Output: {}", theFuture.join())
-        logger.info("joined values = {}", whatIfYouMapToAnotherMethod().join())
-        logger.info("Process took {}ms", Instant.now().toEpochMilli() - start.toEpochMilli())
+        val job = GlobalScope.launch(Dispatchers.IO) {
+//            val test1 = async {
+//                logger.info("beginning 1")
+//                delay(100)
+//                logger.info("s2")
+//            }
+//            val test2 = async {
+//                logger.info("s3")
+//                delay(100)
+//                logger.info("s4")
+//            }
+//            test1.join()
+//            test2.join()
+            launchMe()
+            val first = coroutineComputeFirstAsync()
+            val second = coroutineComputeSecondAsync()
+            // do some other logic
 
+            val firstValue = first.await()
+            val computeThird = computeThird(firstValue)
+            second.await()
+            computeThird.join()
+        }
+        logger.info("Process took {}ms", Instant.now().toEpochMilli() - start.toEpochMilli())
+        Thread.sleep(1000)
     }
 
     fun ifWeDontJoinNothingHappens(): CompletableFuture<Int> {
@@ -89,21 +113,38 @@ object Main {
             value + 5
         }
 
-    private suspend fun coroutineComputeFirstAsync(): Deferred<Int> = coroutineScope {
-        async {
-            logger.info("START: Coroutine computing first value")
-            delay(200)
-            logger.info("DONE: Coroutine computed first value")
-            3
+    private fun consumeValue(value: Int): CompletableFuture<Void> =
+        CompletableFuture.runAsync {
+            logger.info("START: Consuming a value")
+            Thread.sleep(250)
+            logger.info("DONE: consumed {}", value)
         }
+
+    private suspend fun coroutineComputeFirstAsync(): Deferred<Int> = GlobalScope.async {
+        logger.info("START: Coroutine computing first value")
+        delay(100)
+        logger.info("DONE: Coroutine computed first value")
+        3
     }
 
-    private suspend fun coroutineComputeSecondAsync(): Deferred<Int> = coroutineScope {
-        async {
-            logger.info("START: Coroutine computing second value")
-            delay(200)
-            logger.info("DONE: Coroutine computed second value")
-            3
+    private suspend fun coroutineComputeSecondAsync(): Deferred<Int> = GlobalScope.async {
+        logger.info("START: Coroutine computing second value")
+        delay(200)
+        logger.info("DONE: Coroutine computed second value")
+        3
+    }
+
+    private suspend fun launchMe(): Job = GlobalScope.launch {
+        launch {
+            logger.info("I'm just running in the background")
+            launch {
+                delay(50)
+                logger.info("Child launch 1")
+            }
+            launch {
+                delay(50)
+                logger.info("Child launch 2")
+            }
         }
     }
 }
