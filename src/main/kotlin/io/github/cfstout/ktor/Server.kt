@@ -5,6 +5,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.natpryce.konfig.Configuration
+import com.natpryce.konfig.ConfigurationProperties
+import com.natpryce.konfig.EnvironmentVariables
+import com.natpryce.konfig.Key
+import com.natpryce.konfig.intType
+import com.natpryce.konfig.overriding
+import io.github.cfstout.ktor.config.fromDirectory
 import io.ktor.application.call
 import io.ktor.application.feature
 import io.ktor.application.install
@@ -24,20 +31,33 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
+import java.nio.file.Path
+import java.time.Instant
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 
 object Server {
     private val logger = LoggerFactory.getLogger(Server::class.java)
-    private val configuredObjectMapper = ObjectMapper().apply {
-        configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
-        configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-        registerModule(KotlinModule())
+    private val configuredObjectMapper by lazy {
+        ObjectMapper().apply {
+            configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
+            configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+            registerModule(KotlinModule())
+        }
     }
 
     @JvmStatic
     fun main(args: Array<String>) {
+        val start = Instant.now()
+        val warmupPool = Executors.newCachedThreadPool()
+        val jacksonFuture = warmupPool.submit(Callable { configuredObjectMapper })
+        val configDir = Path.of(args.getOrNull(0)
+            ?: throw IllegalArgumentException("First argument must be config dir"))
+
+        val config = EnvironmentVariables() overriding ConfigurationProperties.fromDirectory(configDir)
         logger.info("Starting up server")
-        val server = embeddedServer(Netty, port = 8080) {
+        val server = embeddedServer(Netty, port = HttpServerConfig(config).port) {
             install(CallLogging) {
                 level = Level.INFO
             }
@@ -61,7 +81,6 @@ object Server {
             allRoutesWithMethod.forEach {
                 logger.info("route: $it")
             }
-
         }
         server.start(wait = true)
     }
@@ -72,3 +91,7 @@ object Server {
 }
 
 data class Greeting(@JsonProperty("greeting") val greeting: String)
+
+class HttpServerConfig(config: Configuration) {
+    val port: Int = config[Key("HTTP_LISTEN_PORT", intType)]
+}
