@@ -1,6 +1,7 @@
 package io.github.cfstout.ktor
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -11,7 +12,11 @@ import com.natpryce.konfig.EnvironmentVariables
 import com.natpryce.konfig.Key
 import com.natpryce.konfig.intType
 import com.natpryce.konfig.overriding
+import com.zaxxer.hikari.HikariDataSource
 import io.github.cfstout.ktor.config.fromDirectory
+import io.github.cfstout.ktor.endpoints.Greeting
+import io.github.cfstout.ktor.endpoints.GreetingEndpoints
+import io.github.cfstout.ktor.hikari.buildHikariConfig
 import io.ktor.application.call
 import io.ktor.application.feature
 import io.ktor.application.install
@@ -32,9 +37,11 @@ import io.ktor.server.netty.Netty
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 import java.nio.file.Path
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
 
 object Server {
     private val logger = LoggerFactory.getLogger(Server::class.java)
@@ -50,39 +57,45 @@ object Server {
     @JvmStatic
     fun main(args: Array<String>) {
         val start = Instant.now()
-        val warmupPool = Executors.newCachedThreadPool()
+        val warmupPool = Executors.newCachedThreadPool(DaemonThreadFactory)
         val jacksonFuture = warmupPool.submit(Callable { configuredObjectMapper })
         val configDir = Path.of(args.getOrNull(0)
             ?: throw IllegalArgumentException("First argument must be config dir"))
 
         val config = EnvironmentVariables() overriding ConfigurationProperties.fromDirectory(configDir)
+        val hikariFuture = warmupPool.submit(Callable { HikariDataSource(buildHikariConfig(config, "DB_")) })
         logger.info("Starting up server")
         val server = embeddedServer(Netty, port = HttpServerConfig(config).port) {
             install(CallLogging) {
                 level = Level.INFO
             }
-            install(ContentNegotiation) {
-                register(ContentType.Application.Json, JacksonConverter(configuredObjectMapper))
-            }
             install(StatusPages) {
                 exception<Throwable> {
-                    logger.error("Internal server error", it)
+                    logger.error("Unhandled exception", it)
                     call.respond(HttpStatusCode.InternalServerError)
                 }
-            }
-            routing {
-                get("/hello") {
-                    call.respond(Greeting("Hello World"))
+                exception<JsonProcessingException> { t->
+                    logger.warn("Bad request json", t)
+                    call.respond(HttpStatusCode.BadRequest, "Invalid JSON")
                 }
             }
+            install(ContentNegotiation) {
+                register(ContentType.Application.Json, JacksonConverter(jacksonFuture.get()))
+            }
+
+            GreetingEndpoints(this, hikariFuture.get())
+
             val root = feature(Routing)
             val allRoutes = allRoutes(root)
             val allRoutesWithMethod = allRoutes.filter { it.selector is HttpMethodRouteSelector }
             allRoutesWithMethod.forEach {
                 logger.info("route: $it")
             }
+            logger.info("Startup time: ${Duration.between(start, Instant.now()).toMillis()}ms")
         }
+        warmupPool.shutdown()
         server.start(wait = true)
+
     }
 
     private fun allRoutes(root: Route): List<Route> {
@@ -90,8 +103,15 @@ object Server {
     }
 }
 
-data class Greeting(@JsonProperty("greeting") val greeting: String)
-
 class HttpServerConfig(config: Configuration) {
     val port: Int = config[Key("HTTP_LISTEN_PORT", intType)]
+}
+
+object DaemonThreadFactory: ThreadFactory {
+    private val delegate = Executors.defaultThreadFactory()
+
+    override fun newThread(r: Runnable): Thread =
+        delegate.newThread(r).apply {
+            isDaemon = true
+        }
 }

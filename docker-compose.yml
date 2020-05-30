@@ -1,0 +1,16 @@
+version: '2.4'
+
+services:
+  postgres:
+    image: 'postgres:11.8'
+    volumes:
+      - 'postgres:/var/lib/postgresql/data'
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: cfstout
+      POSTGRES_DB: cfstout
+      POSTGRES_PASSWORD: password
+
+volumes:
+  postgres:
