@@ -1,6 +1,5 @@
 package io.github.cfstout.ktor
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -14,7 +13,6 @@ import com.natpryce.konfig.intType
 import com.natpryce.konfig.overriding
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cfstout.ktor.config.fromDirectory
-import io.github.cfstout.ktor.endpoints.Greeting
 import io.github.cfstout.ktor.endpoints.GreetingEndpoints
 import io.github.cfstout.ktor.hikari.buildHikariConfig
 import io.ktor.application.call
@@ -31,17 +29,16 @@ import io.ktor.routing.HttpMethodRouteSelector
 import io.ktor.routing.Route
 import io.ktor.routing.Routing
 import io.ktor.routing.get
-import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
-import org.slf4j.LoggerFactory
-import org.slf4j.event.Level
 import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
+import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 
 object Server {
     private val logger = LoggerFactory.getLogger(Server::class.java)
@@ -74,7 +71,7 @@ object Server {
                     logger.error("Unhandled exception", it)
                     call.respond(HttpStatusCode.InternalServerError)
                 }
-                exception<JsonProcessingException> { t->
+                exception<JsonProcessingException> { t ->
                     logger.warn("Bad request json", t)
                     call.respond(HttpStatusCode.BadRequest, "Invalid JSON")
                 }
@@ -95,7 +92,6 @@ object Server {
         }
         warmupPool.shutdown()
         server.start(wait = true)
-
     }
 
     private fun allRoutes(root: Route): List<Route> {
@@ -107,7 +103,7 @@ class HttpServerConfig(config: Configuration) {
     val port: Int = config[Key("HTTP_LISTEN_PORT", intType)]
 }
 
-object DaemonThreadFactory: ThreadFactory {
+object DaemonThreadFactory : ThreadFactory {
     private val delegate = Executors.defaultThreadFactory()
 
     override fun newThread(r: Runnable): Thread =

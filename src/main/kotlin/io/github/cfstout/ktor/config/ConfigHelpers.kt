@@ -18,6 +18,6 @@ fun ConfigurationProperties.Companion.fromDirectory(configDir: Path): Configurat
         .asSequence()
         .sorted()
         .map { fromFile(it.toFile()) }
-        .fold(EmptyConfiguration as Configuration) {acc, configurationProperties ->
+        .fold(EmptyConfiguration as Configuration) { acc, configurationProperties ->
             Override(configurationProperties, acc)
         }

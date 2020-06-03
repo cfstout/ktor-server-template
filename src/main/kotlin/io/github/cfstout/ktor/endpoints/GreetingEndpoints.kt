@@ -8,9 +8,9 @@ import io.ktor.response.respond
 import io.ktor.routing.get
 import io.ktor.routing.post
 import io.ktor.routing.routing
+import javax.sql.DataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import javax.sql.DataSource
 
 class GreetingEndpoints(app: Application, datasource: DataSource) {
     init {

@@ -2,7 +2,6 @@ package io.github.cfstout.ktor
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 
 object CoroutineDemo {
