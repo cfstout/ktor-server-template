@@ -5,9 +5,10 @@ plugins {
     java
     application
     kotlin("jvm") version "1.3.70"
+    id("com.github.ben-manes.versions") version "0.28.0"
+    id("nu.studer.jooq") version "4.1"
     id("org.jmailen.kotlinter") version "2.3.2"
     id("org.flywaydb.flyway") version "6.4.2"
-    id("nu.studer.jooq") version "4.1"
 }
 
 repositories {
@@ -67,6 +68,22 @@ tasks {
     test {
         useJUnitPlatform()
     }
+
+    val installPreCommitHook by registering(Copy::class) {
+        val preCommitHookFile = "$rootDir/git_hooks/pre-commit"
+        val gitDir = findGitDir(projectDir) ?: throw RuntimeException("Can't find .git dir")
+        val gitHookDir = "$gitDir/hooks"
+
+        inputs.file(preCommitHookFile)
+        outputs.file("$gitHookDir/$preCommitHookFile")
+
+        from(preCommitHookFile)
+        into(gitHookDir)
+    }
+
+    check {
+        dependsOn(installPreCommitHook)
+    }
 }
 
 java {
@@ -75,4 +92,16 @@ java {
 
 application {
     mainClassName = "io.github.cfstout.ktor.Server"
+}
+
+fun findGitDir(dir: File): File? {
+    val gitDir = File(dir, ".git")
+    if (gitDir.exists()) {
+        return gitDir
+    }
+    if (!dir.parentFile.exists()) {
+        // at top of hierarchy
+        return null
+    }
+    return findGitDir(dir.parentFile)
 }
