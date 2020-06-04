@@ -1,46 +1,63 @@
 package io.github.cfstout.ktor.dao
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import io.github.cfstout.ktor.jooq.tables.FavoriteColors
+import org.jooq.DSLContext
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.io.Closeable
 
 abstract class DemoDaoTest {
-    abstract val dao: DemoDao
+    abstract fun withDao(block: (DemoDao) -> Unit)
 
     @Test
     fun getReturnsNull() {
-        assertNull(dao.get(UserId(1)))
+        withDao {
+            assertNull(it.get(UserId(1)))
+        }
     }
 
     @Test
     fun setAndGet() {
-        dao.set(UserId(1), Color("red"))
-        assertEquals(Color("red"), dao.get(UserId(1)))
+        withDao {
+            it.set(UserId(1), Color("red"))
+            assertEquals(Color("red"), it.get(UserId(1)))
+        }
     }
 
     @Test
     fun setOverrides() {
-        dao.set(UserId(1), Color("red"))
-        dao.set(UserId(1), Color("blue"))
-        assertEquals(Color("blue"), dao.get(UserId(1)))
+        withDao {
+            it.set(UserId(1), Color("red"))
+            it.set(UserId(1), Color("blue"))
+            assertEquals(Color("blue"), it.get(UserId(1)))
+        }
     }
 
     @Test
     fun getColorsByCount() {
-        dao.set(UserId(1), Color("red"))
-        dao.set(UserId(2), Color("blue"))
-        dao.set(UserId(3), Color("red"))
+        withDao {
+            it.set(UserId(1), Color("red"))
+            it.set(UserId(2), Color("blue"))
+            it.set(UserId(3), Color("red"))
 
-        val expected = mapOf(
-            Color("red") to 2,
-            Color("blue") to 1
-        )
-        assertEquals(expected, dao.getColorsByCount())
+            val expected = mapOf(
+                Color("red") to 2,
+                Color("blue") to 1
+            )
+            assertEquals(expected, it.getColorsByCount())
+        }
     }
 }
 
-class InMemoryDemoDaoTest : DemoDaoTest() {
-    override val dao: DemoDao = InMemoryDemoDao()
+class InMemoryDemzoDaoTest : DemoDaoTest() {
+    override fun withDao(block: (DemoDao) -> Unit) = block(InMemoryDemoDao())
 }
 
 class InMemoryDemoDao : DemoDao {
@@ -53,4 +70,52 @@ class InMemoryDemoDao : DemoDao {
     }
 
     override fun getColorsByCount(): Map<Color, Int> = db.asSequence().groupingBy { it.value }.eachCount()
+}
+
+class SqlDemoDaoTest: DemoDaoTest() {
+    private val dbHelpers = DbHelpers()
+
+    override fun withDao(block: (DemoDao) -> Unit) {
+        dbHelpers.txnContext.transaction { t ->
+            block(SqlDemoDao(t.dsl()))
+        }
+    }
+
+    @BeforeEach
+    fun cleanDb() {
+        dbHelpers.cleanupDb()
+    }
+
+    @AfterEach
+    fun cleanupDbHelpers() {
+        dbHelpers.close()
+    }
+}
+
+class DbHelpers: Closeable {
+    private val config = HikariConfig().apply {
+        addDataSourceProperty("serverName", "localhost")
+        addDataSourceProperty("portNumber", 5432)
+        addDataSourceProperty("databaseName", "cfstout")
+        isAutoCommit = false
+        username = "cfstout"
+        password = "password"
+        connectionInitSql = "SET TIME ZONE 'UTC'"
+        dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
+        maximumPoolSize = 2
+    }
+
+    private val dataSource: HikariDataSource = HikariDataSource(config)
+    val txnContext: DSLContext = DSL.using(dataSource, SQLDialect.POSTGRES)
+
+    fun cleanupDb() {
+        txnContext.transaction { t ->
+            t.dsl().deleteFrom(FavoriteColors.FAVORITE_COLORS).execute()
+        }
+    }
+
+    override fun close() {
+        dataSource.close()
+        txnContext.close()
+    }
 }

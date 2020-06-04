@@ -1,0 +1,29 @@
+jooq {
+    version = "3.13.2"
+    edition = "OSS"
+
+    primaryDb(sourceSets.main) {
+        jdbc {
+            driver = "org.postgresql.Driver"
+            url = project.ext.dbUrl
+            user = project.ext.dbUser
+            password = project.ext.dbPw
+        }
+
+        generator {
+            target {
+                packageName = "io.github.cfstout.ktor.jooq"
+            }
+            database {
+                inputSchema = "public"
+                excludes = "flyway_schema_history"
+            }
+            generate {
+                generatedAnnotation = false
+            }
+        }
+    }
+}
+
+compileKotlin.dependsOn(generatePrimaryDbJooqSchemaSource)
+generatePrimaryDbJooqSchemaSource.dependsOn(flywayMigrate)

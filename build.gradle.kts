@@ -7,6 +7,7 @@ plugins {
     kotlin("jvm") version "1.3.70"
     id("org.jmailen.kotlinter") version "2.3.2"
     id("org.flywaydb.flyway") version "6.4.2"
+    id("nu.studer.jooq") version "4.1"
 }
 
 repositories {
@@ -16,6 +17,8 @@ repositories {
 val dbUser by extra { "cfstout" }
 val dbPw by extra { "password" }
 val dbUrl by extra { "jdbc:postgresql://localhost:5432/cfstout" }
+
+apply(from = "jooq.gradle")
 
 flyway {
     url = dbUrl
@@ -43,7 +46,10 @@ dependencies {
     implementation("com.zaxxer", "HikariCP", deps["hikari"])
     implementation("io.ktor", "ktor-jackson", "${deps["ktor"]}")
     implementation("io.ktor", "ktor-server-netty", deps["ktor"])
+    implementation("org.jooq", "jooq")
     runtimeOnly("org.postgresql", "postgresql", deps["postgres"])
+
+    jooqRuntime("org.postgresql", "postgresql", deps["postgres"])
 
     testImplementation("org.junit.jupiter", "junit-jupiter-api", deps["junit"])
     testRuntimeOnly("org.junit.jupiter", "junit-jupiter-engine", deps["junit"])
