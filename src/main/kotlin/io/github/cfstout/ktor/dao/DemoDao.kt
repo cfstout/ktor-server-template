@@ -1,6 +1,5 @@
 package io.github.cfstout.ktor.dao
 
-import io.github.cfstout.ktor.jooq.tables.FavoriteColors
 import io.github.cfstout.ktor.jooq.tables.FavoriteColors.FAVORITE_COLORS
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -13,7 +12,6 @@ interface DemoDao {
 
 data class Color(val name: String)
 data class UserId(val id: Int)
-
 
 class SqlDemoDao(private val txnContext: DSLContext) : DemoDao {
     override fun get(userId: UserId): Color? {

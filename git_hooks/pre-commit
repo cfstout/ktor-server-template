@@ -1,0 +1,16 @@
+#!/bin/sh
+echo "Running ktlint..."
+
+GRADLE=./gradlew
+LINT_COMMAND="$GRADLE lintKotlin"
+FORMAT_COMMAND="$GRADLE formatKotlin"
+
+$LINT_COMMAND
+
+status=$?
+if [ "$status" != 0 ] ; then
+    # shellcheck disable=SC2028
+    echo 1>&2 "\n$LINT_COMMAND found problems! Running $FORMAT_COMMAND..."
+    $FORMAT_COMMAND
+    exit 1
+fi
