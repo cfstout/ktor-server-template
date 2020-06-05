@@ -13,6 +13,7 @@ import com.natpryce.konfig.intType
 import com.natpryce.konfig.overriding
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cfstout.ktor.config.fromDirectory
+import io.github.cfstout.ktor.dao.SqlDaoFactory
 import io.github.cfstout.ktor.endpoints.GreetingEndpoints
 import io.github.cfstout.ktor.hikari.buildHikariConfig
 import io.ktor.application.call
@@ -37,6 +38,8 @@ import java.time.Instant
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 
@@ -56,11 +59,19 @@ object Server {
         val start = Instant.now()
         val warmupPool = Executors.newCachedThreadPool(DaemonThreadFactory)
         val jacksonFuture = warmupPool.submit(Callable { configuredObjectMapper })
-        val configDir = Path.of(args.getOrNull(0)
-            ?: throw IllegalArgumentException("First argument must be config dir"))
+        val configDir = Path.of(
+            args.getOrNull(0)
+                ?: throw IllegalArgumentException("First argument must be config dir")
+        )
 
         val config = EnvironmentVariables() overriding ConfigurationProperties.fromDirectory(configDir)
-        val hikariFuture = warmupPool.submit(Callable { HikariDataSource(buildHikariConfig(config, "DB_")) })
+        val jooqFuture =
+            warmupPool.submit(Callable {
+                DSL.using(
+                    HikariDataSource(buildHikariConfig(config, "DB_")),
+                    SQLDialect.POSTGRES
+                )
+            })
         logger.info("Starting up server")
         val server = embeddedServer(Netty, port = HttpServerConfig(config).port) {
             install(CallLogging) {
@@ -80,7 +91,7 @@ object Server {
                 register(ContentType.Application.Json, JacksonConverter(jacksonFuture.get()))
             }
 
-            GreetingEndpoints(this, hikariFuture.get())
+            GreetingEndpoints(this, jooqFuture.get(), SqlDaoFactory)
 
             val root = feature(Routing)
             val allRoutes = allRoutes(root)

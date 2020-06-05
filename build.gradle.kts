@@ -53,6 +53,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter", "junit-jupiter-api", deps["junit"])
     testRuntimeOnly("org.junit.jupiter", "junit-jupiter-engine", deps["junit"])
+    testImplementation("io.ktor", "ktor-server-tests", deps["ktor"])
 }
 
 tasks {

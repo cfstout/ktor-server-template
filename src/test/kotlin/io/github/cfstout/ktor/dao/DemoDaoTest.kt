@@ -3,6 +3,7 @@ package io.github.cfstout.ktor.dao
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cfstout.ktor.jooq.tables.FavoriteColors
+import java.io.Closeable
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
@@ -11,7 +12,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.io.Closeable
 
 abstract class DemoDaoTest {
     abstract fun withDao(block: (DemoDao) -> Unit)
@@ -72,7 +72,7 @@ class InMemoryDemoDao : DemoDao {
     override fun getColorsByCount(): Map<Color, Int> = db.asSequence().groupingBy { it.value }.eachCount()
 }
 
-class SqlDemoDaoTest: DemoDaoTest() {
+class SqlDemoDaoTest : DemoDaoTest() {
     private val dbHelpers = DbHelpers()
 
     override fun withDao(block: (DemoDao) -> Unit) {
@@ -92,7 +92,7 @@ class SqlDemoDaoTest: DemoDaoTest() {
     }
 }
 
-class DbHelpers: Closeable {
+class DbHelpers : Closeable {
     private val config = HikariConfig().apply {
         addDataSourceProperty("serverName", "localhost")
         addDataSourceProperty("portNumber", 5432)
